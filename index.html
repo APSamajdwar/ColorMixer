@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Color Mixer!</title>
+  <style>
+    :root {
+      --bg: #f0f0f0;
+      --bg2: #ffffff;
+      --text: #333333;
+      --text2: #777777;
+      --border: #cccccc;
+      --shadow: rgba(0,0,0,0.15);
+    }
+    .dark {
+      --bg: #1a1a2e;
+      --bg2: #16213e;
+      --text: #eeeeff;
+      --text2: #aaaacc;
+      --border: #444466;
+      --shadow: rgba(0,0,0,0.4);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', 'Comic Sans MS', cursive, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow-x: hidden;
+      transition: background 0.4s, color 0.4s;
+    }
+
+    /* ===== TOP BAR ===== */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 50;
+      border-bottom: 2px solid var(--border);
+    }
+    .top-bar h1 { font-size: 1.6rem; }
+    .top-bar-buttons { display: flex; gap: 8px; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--bg2);
+      cursor: pointer;
+      font-size: 1.2rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s;
+    }
+    .icon-btn:hover { transform: scale(1.1); }
+    .icon-btn:active { transform: scale(0.9); }
+
+    /* ===== MASCOT ===== */
+    .mascot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .mascot-face {
+      font-size: 3.5rem;
+      transition: transform 0.3s;
+      animation: mascotBounce 2s ease-in-out infinite;
+    }
+    @keyframes mascotBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .mascot-speech {
+      background: var(--bg2);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 6px 14px;
+      font-size: 0.95rem;
+      color: var(--text2);
+      margin-top: 4px;
+      max-width: 280px;
+      text-align: center;
+      position: relative;
+    }
+    .mascot-speech::before {
+      content: '';
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 8px solid var(--border);
+    }
+
+    /* ===== TABS ===== */
+    .tabs {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 8px 0;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      padding: 10px 16px;
+      border: none;
+      background: var(--bg2);
+      color: var(--text2);
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 12px 12px 0 0;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      border: 2px solid var(--border);
+      border-bottom: none;
+    }
+    .tab-btn.active {
+      background: var(--bg);
+      color: var(--text);
+      border-bottom: 2px solid var(--bg);
+      margin-bottom: -2px;
+      z-index: 1;
+    }
+    .tab-content {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      border-top: 2px solid var(--border);
+      min-height: 60vh;
+    }
+    .tab-content.active { display: flex; }
+
+    /* ===== MIX MODE ===== */
+    .color-groups { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .group-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text2);
+      margin-top: 4px;
+    }
+    .color-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+    }
+    .color-btn {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: 4px solid var(--bg2);
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 3px 8px var(--shadow);
+      position: relative;
+      /* drag */
+      touch-action: none;
+    }
+    .color-btn:hover { transform: scale(1.1); }
+    .color-btn:active { transform: scale(0.95); }
+    .color-btn .label {
+      position: absolute;
+      bottom: -20px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text2);
+      white-space: nowrap;
+    }
+    .color-btn.selected {
+      border-color: var(--text);
+      transform: scale(1.12);
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.2), 0 5px 15px var(--shadow);
+    }
+    .color-btn.dragging {
+      opacity: 0.5;
+      transform: scale(0.9);
+    }
+
+    /* Mixing bowl */
+    .bowl-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 16px 0;
+    }
+    .bowl {
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: var(--bg2);
+      border: 5px dashed var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .bowl.drag-over {
+      border-color: var(--text);
+      transform: scale(1.05);
+      border-style: solid;
+    }
+    .bowl.has-result {
+      border-style: solid;
+      border-color: #fff;
+    }
+    .bowl-drops {
+      display: flex;
+      position: absolute;
+      width: 100%; height: 100%;
+    }
+    .bowl-drop {
+      flex: 1;
+      transition: background 0.4s;
+    }
+    .bowl-swirl {
+      position: absolute;
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .bowl-swirl.active {
+      opacity: 1;
+      animation: swirlAnim 1s ease-in-out forwards;
+    }
+    @keyframes swirlAnim {
+      0% { transform: rotate(0deg) scale(1); background: conic-gradient(var(--c1) 0deg, var(--c2) 180deg, var(--c1) 360deg); }
+      50% { transform: rotate(360deg) scale(0.8); background: conic-gradient(var(--c1) 0deg, var(--c2) 120deg, var(--c1) 240deg, var(--c2) 360deg); }
+      100% { transform: rotate(720deg) scale(1); opacity: 0; }
+    }
+    .bowl-result-emoji {
+      font-size: 3rem;
+      z-index: 2;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .bowl.has-result .bowl-result-emoji { opacity: 1; }
+
+    .bowl-label { font-size: 0.85rem; color: var(--text2); margin-top: 6px; }
+
+    .picks-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .pick-circle {
+      width: 50px; height: 50px;
+      border-radius: 50%;
+      border: 3px dashed var(--border);
+      background: var(--bg2);
+      transition: all 0.3s;
+    }
+    .pick-circle.filled {
+      border-style: solid;
+      border-color: #fff;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+    .pick-plus { font-size: 1.5rem; font-weight: bold; color: var(--border); }
+    .pick-equals { font-size: 1.5rem; font-weight: bold; color: var(--border); }
+
+    .result-info { text-align: center; margin-top: 6px; min-height: 56px; }
+    .result-name { font-size: 1.6rem; font-weight: bold; }
+    .result-recipe { font-size: 0.9rem; color: var(--text2); }
+
+    .action-row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      padding: 10px 28px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: transform 0.15s;
+      box-shadow: 0 3px 10px var(--shadow);
+    }
+    .btn:hover { transform: scale(1.05); }
+    .btn:active { transform: scale(0.95); }
+    .btn-red { background: #ff6b6b; color: #fff; }
+    .btn-green { background: #2ecc71; color: #fff; }
+    .btn-blue { background: #3498db; color: #fff; }
+    .btn-purple { background: #9b59b6; color: #fff; }
+    .btn-hide { display: none !important; }
+
+    /* ===== QUIZ MODE ===== */
+    .quiz-area { text-align: center; width: 100%; max-width: 420px; }
+    .quiz-prompt { font-size: 1.2rem; margin-bottom: 10px; color: var(--text2); }
+    .quiz-target {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      margin: 0 auto 6px;
+      border: 5px solid #fff;
+      box-shadow: 0 4px 15px var(--shadow);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem;
+    }
+    .quiz-target-name { font-size: 1.5rem; font-weight: bold; margin-bottom: 14px; }
+    .quiz-score {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 14px;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .quiz-feedback {
+      font-size: 1.4rem;
+      font-weight: bold;
+      min-height: 2rem;
+      margin: 8px 0;
+    }
+    .stars { display: flex; justify-content: center; gap: 4px; margin: 6px 0; }
+    .star { font-size: 1.8rem; transition: transform 0.3s; }
+    .star.earned { animation: starPop 0.4s ease; }
+    @keyframes starPop {
+      0% { transform: scale(0); }
+      60% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+
+    /* ===== PAINT MODE ===== */
+    .paint-area { width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: center; }
+    .paint-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .paint-color-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: 3px solid var(--bg2);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .paint-color-btn:hover { transform: scale(1.15); }
+    .paint-color-btn.active { border-color: var(--text); transform: scale(1.15); }
+    .brush-size-group { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+    .brush-size-group label { font-size: 0.85rem; color: var(--text2); }
+    .brush-slider { width: 80px; }
+    .paint-canvas {
+      border: 3px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      cursor: crosshair;
+      touch-action: none;
+      max-width: 100%;
+    }
+
+    /* ===== FREE MIX MODE ===== */
+    .free-mix-area { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; }
+    .slider-group { width: 100%; margin: 8px 0; }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 6px 0;
+    }
+    .slider-label {
+      width: 60px;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .slider-label.r-label { color: #e74c3c; }
+    .slider-label.g-label { color: #2ecc71; }
+    .slider-label.b-label { color: #3498db; }
+    .color-slider {
+      flex: 1;
+      height: 24px;
+      -webkit-appearance: none;
+      border-radius: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+    .color-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: #fff;
+      border: 3px solid #888;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .slider-val {
+      width: 36px;
+      text-align: right;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    .free-preview {
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      border: 6px solid #fff;
+      box-shadow: 0 6px 20px var(--shadow);
+      margin: 12px 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 600; color: #fff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .shade-row { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; justify-content: center; }
+    .shade-chip {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 3px solid var(--bg2);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .shade-chip:hover { transform: scale(1.15); }
+
+    /* ===== COLLECTION ===== */
+    .collection-area { width: 100%; max-width: 500px; }
+    .collection-header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .collection-progress { font-size: 0.95rem; color: var(--text2); margin-top: 4px; }
+    .collection-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+    .sticker {
+      width: 90px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 8px 4px;
+      border-radius: 12px;
+      background: var(--bg2);
+      border: 2px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .sticker:hover { transform: scale(1.05); }
+    .sticker-circle {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 6px var(--shadow);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+    }
+    .sticker-name { font-size: 0.65rem; font-weight: 600; text-align: center; }
+    .sticker-recipe {
+      font-size: 0.55rem;
+      color: var(--text2);
+      text-align: center;
+      line-height: 1.2;
+      min-height: 1em;
+    }
+    .sticker.locked {
+      opacity: 0.35;
+      filter: grayscale(1);
+    }
+    .sticker.locked .sticker-circle { background: var(--border) !important; }
+    .sticker.new { animation: stickerNew 0.6s ease; }
+    @keyframes stickerNew {
+      0% { transform: scale(0) rotate(-20deg); }
+      60% { transform: scale(1.15) rotate(5deg); }
+      100% { transform: scale(1) rotate(0); }
+    }
+
+    /* ===== CONFETTI ===== */
+    .confetti {
+      position: fixed;
+      top: -10px;
+      border-radius: 2px;
+      opacity: 0.9;
+      animation: fall linear forwards;
+      pointer-events: none;
+      z-index: 100;
+    }
+    @keyframes fall {
+      to { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+    }
+
+    /* ===== Sound toggle indicator ===== */
+    #soundBtn.muted { opacity: 0.5; }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 420px) {
+      .color-btn { width: 64px; height: 64px; }
+      .color-btn .label { font-size: 0.6rem; bottom: -16px; }
+      .bowl { width: 140px; height: 140px; }
+      .tab-btn { padding: 8px 10px; font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <h1>Color Mixer!</h1>
+    <div class="top-bar-buttons">
+      <button class="icon-btn" id="soundBtn" title="Toggle Sound">🔊</button>
+      <button class="icon-btn" id="themeBtn" title="Toggle Dark Mode">🌙</button>
+      <button class="icon-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
+    </div>
+  </div>
+
+  <!-- MASCOT -->
+  <div class="mascot">
+    <div class="mascot-face" id="mascotFace">🎨</div>
+    <div class="mascot-speech" id="mascotSpeech">Hi! Pick two colors to mix!</div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="mix">Mix</button>
+    <button class="tab-btn" data-tab="quiz">Quiz</button>
+    <button class="tab-btn" data-tab="paint">Paint</button>
+    <button class="tab-btn" data-tab="free">Free Mix</button>
+    <button class="tab-btn" data-tab="collection">Collection</button>
+  </div>
+
+  <!-- ============ MIX TAB ============ -->
+  <div class="tab-content active" id="tab-mix">
+    <div class="color-groups" id="mixPalette"></div>
+
+    <div class="picks-row">
+      <div class="pick-circle" id="pick1"></div>
+      <span class="pick-plus">+</span>
+      <div class="pick-circle" id="pick2"></div>
+      <span class="pick-plus btn-hide" id="plus3">+</span>
+      <div class="pick-circle btn-hide" id="pick3"></div>
+      <span class="pick-equals">=</span>
+      <div class="pick-circle" id="pickResult" style="width:56px;height:56px;"></div>
+    </div>
+
+    <div class="bowl-area">
+      <div class="bowl" id="bowl">
+        <div class="bowl-drops">
+          <div class="bowl-drop" id="bowlDrop1"></div>
+          <div class="bowl-drop" id="bowlDrop2"></div>
+          <div class="bowl-drop" id="bowlDrop3"></div>
+        </div>
+        <div class="bowl-swirl" id="bowlSwirl"></div>
+        <span class="bowl-result-emoji" id="bowlEmoji"></span>
+      </div>
+      <div class="bowl-label">Drop colors here!</div>
+    </div>
+
+    <div class="result-info">
+      <div class="result-name" id="resultName"></div>
+      <div class="result-recipe" id="resultRecipe"></div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-red btn-hide" id="resetBtn">Try Again!</button>
+      <button class="btn btn-purple btn-hide" id="add3rdBtn">+ Add 3rd color!</button>
+      <button class="btn btn-green btn-hide" id="paintWithBtn">Paint with this!</button>
+    </div>
+  </div>
+
+  <!-- ============ QUIZ TAB ============ -->
+  <div class="tab-content" id="tab-quiz">
+    <div class="quiz-area">
+      <div class="quiz-score">
+        <span>Score: <span id="quizScore">0</span></span>
+        <span>Streak: <span id="quizStreak">0</span>🔥</span>
+      </div>
+      <div class="stars" id="quizStars"></div>
+      <div class="quiz-prompt">Mix these colors to make:</div>
+      <div class="quiz-target" id="quizTarget"></div>
+      <div class="quiz-target-name" id="quizTargetName"></div>
+      <div class="color-groups" id="quizPalette"></div>
+      <div class="picks-row" style="justify-content:center;">
+        <div class="pick-circle" id="qPick1"></div>
+        <span class="pick-plus">+</span>
+        <div class="pick-circle" id="qPick2"></div>
+      </div>
+      <div class="quiz-feedback" id="quizFeedback"></div>
+      <div class="action-row">
+        <button class="btn btn-blue btn-hide" id="nextQuizBtn">Next!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAINT TAB ============ -->
+  <div class="tab-content" id="tab-paint">
+    <div class="paint-area">
+      <div class="paint-toolbar" id="paintToolbar"></div>
+      <div class="brush-size-group">
+        <label>Brush:</label>
+        <input type="range" class="brush-slider" id="brushSlider" min="4" max="50" value="16">
+        <button class="btn btn-red" style="padding:6px 14px;font-size:0.85rem;" id="clearCanvasBtn">Clear</button>
+      </div>
+      <canvas class="paint-canvas" id="paintCanvas" width="480" height="400"></canvas>
+    </div>
+  </div>
+
+  <!-- ============ FREE MIX TAB ============ -->
+  <div class="tab-content" id="tab-free">
+    <div class="free-mix-area">
+      <p style="margin-bottom:8px;color:var(--text2);">Slide to create any color!</p>
+      <div class="slider-group">
+        <div class="slider-row">
+          <span class="slider-label r-label">Red</span>
+          <input type="range" class="color-slider" id="sliderR" min="0" max="255" value="120" style="background:linear-gradient(to right,#000,#e74c3c);">
+          <span class="slider-val" id="valR">120</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label g-label">Green</span>
+          <input type="range" class="color-slider" id="sliderG" min="0" max="255" value="80" style="background:linear-gradient(to right,#000,#2ecc71);">
+          <span class="slider-val" id="valG">80</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label b-label">Blue</span>
+          <input type="range" class="color-slider" id="sliderB" min="0" max="255" value="200" style="background:linear-gradient(to right,#000,#3498db);">
+          <span class="slider-val" id="valB">200</span>
+        </div>
+      </div>
+      <div class="free-preview" id="freePreview"></div>
+      <p style="font-size:0.85rem;color:var(--text2);margin-bottom:4px;">Shades (add white ← → add black)</p>
+      <div class="shade-row" id="shadeRow"></div>
+      <button class="btn btn-green" id="useFreeColorBtn" style="margin-top:10px;">Use in Paint</button>
+    </div>
+  </div>
+
+  <!-- ============ COLLECTION TAB ============ -->
+  <div class="tab-content" id="tab-collection">
+    <div class="collection-area">
+      <div class="collection-header">
+        <h2>Sticker Book</h2>
+        <div class="collection-progress" id="collectionProgress"></div>
+      </div>
+      <div class="collection-grid" id="collectionGrid"></div>
+    </div>
+  </div>
+
+<script>
+/* ==========================================================================
+   COLOR MIXER — FULL APP
+   ========================================================================== */
+
+/* ---------- AUDIO (Web Audio API) ---------- */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+let soundOn = true;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+}
+
+function playTone(freq, dur, type = 'sine', vol = 0.15) {
+  if (!soundOn) return;
+  ensureAudio();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.value = vol;
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+function sfxPick()    { playTone(520, 0.12, 'sine', 0.12); }
+function sfxDrop()    { playTone(380, 0.15, 'triangle', 0.12); }
+function sfxMix()     { playTone(300, 0.3, 'sawtooth', 0.06); setTimeout(() => playTone(600, 0.25, 'sine', 0.1), 250); }
+function sfxSuccess() { [0,100,200].forEach((d,i) => setTimeout(() => playTone(440 + i*110, 0.2, 'sine', 0.1), d)); }
+function sfxWrong()   { playTone(200, 0.35, 'square', 0.08); }
+function sfxSplat()   { playTone(120, 0.2, 'sawtooth', 0.08); }
+function sfxConfetti(){ [0,50,100,150].forEach((d,i) => setTimeout(() => playTone(600 + i*80, 0.15, 'sine', 0.06), d)); }
+
+/* ---------- COLORS & MIXES ---------- */
+const PRIMARY = [
+  { name: 'Red',    hex: '#e74c3c', type: 'primary' },
+  { name: 'Yellow', hex: '#f1c40f', type: 'primary' },
+  { name: 'Blue',   hex: '#3498db', type: 'primary' },
+];
+const EXTRA = [
+  { name: 'White',  hex: '#f5f5f5', type: 'extra' },
+  { name: 'Black',  hex: '#2c3e50', type: 'extra' },
+];
+const SECONDARY = [
+  { name: 'Orange', hex: '#e67e22', type: 'secondary' },
+  { name: 'Green',  hex: '#2ecc71', type: 'secondary' },
+  { name: 'Purple', hex: '#9b59b6', type: 'secondary' },
+];
+const ALL_PALETTE = [...PRIMARY, ...SECONDARY, ...EXTRA];
+
+const MIXES = {
+  // primary + primary → secondary
+  'Red+Yellow':     { name: 'Orange',        hex: '#e67e22', emoji: '🍊' },
+  'Red+Blue':       { name: 'Purple',        hex: '#9b59b6', emoji: '🍇' },
+  'Yellow+Blue':    { name: 'Green',         hex: '#2ecc71', emoji: '🌿' },
+  // primary + white → tints
+  'Red+White':      { name: 'Pink',          hex: '#fdcbdb', emoji: '🌸' },
+  'Blue+White':     { name: 'Light Blue',    hex: '#85c1e9', emoji: '🧊' },
+  'Yellow+White':   { name: 'Light Yellow',  hex: '#fef9e7', emoji: '🌼' },
+  'Orange+White':   { name: 'Peach',         hex: '#f5cba7', emoji: '🍑' },
+  'Green+White':    { name: 'Mint',          hex: '#abebc6', emoji: '🍃' },
+  'Purple+White':   { name: 'Lavender',      hex: '#d7bde2', emoji: '💜' },
+  // primary + black → shades
+  'Red+Black':      { name: 'Maroon',        hex: '#922b21', emoji: '🌹' },
+  'Blue+Black':     { name: 'Navy',          hex: '#1a5276', emoji: '🫐' },
+  'Yellow+Black':   { name: 'Olive',         hex: '#6e7b3a', emoji: '🫒' },
+  'Orange+Black':   { name: 'Brown',         hex: '#7e5109', emoji: '🥥' },
+  'Green+Black':    { name: 'Forest Green',  hex: '#1e5631', emoji: '🌲' },
+  'Purple+Black':   { name: 'Plum',          hex: '#512e5f', emoji: '🍆' },
+  // secondary + primary → tertiary
+  'Red+Orange':     { name: 'Red-Orange',    hex: '#d35400', emoji: '🌶️' },
+  'Yellow+Orange':  { name: 'Amber',         hex: '#f39c12', emoji: '🍯' },
+  'Yellow+Green':   { name: 'Lime',          hex: '#a8d948', emoji: '🍈' },
+  'Blue+Green':     { name: 'Teal',          hex: '#1abc9c', emoji: '🐬' },
+  'Blue+Purple':    { name: 'Indigo',        hex: '#5b2c8e', emoji: '🔮' },
+  'Red+Purple':     { name: 'Magenta',       hex: '#c0392b', emoji: '🌺' },
+  // secondary + secondary
+  'Orange+Green':   { name: 'Khaki',         hex: '#b7950b', emoji: '🥝' },
+  'Orange+Purple':  { name: 'Rust',          hex: '#a04000', emoji: '🍂' },
+  'Green+Purple':   { name: 'Slate',         hex: '#566573', emoji: '🪨' },
+  // extras
+  'Black+White':    { name: 'Gray',          hex: '#95a5a6', emoji: '🐘' },
+  // same + same
+  'Red+Red':        { name: 'Red',           hex: '#e74c3c', emoji: '❤️' },
+  'Yellow+Yellow':  { name: 'Yellow',        hex: '#f1c40f', emoji: '⭐' },
+  'Blue+Blue':      { name: 'Blue',          hex: '#3498db', emoji: '💙' },
+  'White+White':    { name: 'White',         hex: '#f5f5f5', emoji: '☁️' },
+  'Black+Black':    { name: 'Black',         hex: '#2c3e50', emoji: '🖤' },
+  'Orange+Orange':  { name: 'Orange',        hex: '#e67e22', emoji: '🧡' },
+  'Green+Green':    { name: 'Green',         hex: '#2ecc71', emoji: '💚' },
+  'Purple+Purple':  { name: 'Purple',        hex: '#9b59b6', emoji: '💜' },
+};
+
+function lookupMix(a, b) {
+  return MIXES[a+'+'+b] || MIXES[b+'+'+a] || null;
+}
+
+/* ---------- COLLECTION (localStorage) ---------- */
+// discovered is now { name: recipe } e.g. { "Orange": "Red + Yellow", "Peach": "Red + Yellow + White" }
+let discovered = JSON.parse(localStorage.getItem('colorMixerDiscovered2') || '{}');
+// Migrate old format (array) if present
+const oldDiscovered = JSON.parse(localStorage.getItem('colorMixerDiscovered') || '[]');
+if (Array.isArray(oldDiscovered) && oldDiscovered.length > 0) {
+  oldDiscovered.forEach(n => { if (!discovered[n]) discovered[n] = ''; });
+  localStorage.setItem('colorMixerDiscovered2', JSON.stringify(discovered));
+  localStorage.removeItem('colorMixerDiscovered');
+}
+
+function discover(name, recipe) {
+  if (!discovered[name]) {
+    discovered[name] = recipe || '';
+    localStorage.setItem('colorMixerDiscovered2', JSON.stringify(discovered));
+    return true;
+  }
+  return false;
+}
+
+/* ---------- MASCOT ---------- */
+const mascotFace = document.getElementById('mascotFace');
+const mascotSpeech = document.getElementById('mascotSpeech');
+const mascotMessages = {
+  idle:    ['Pick two colors!', 'What will you mix?', 'Try something new!', 'Drag a color to the bowl!'],
+  mixing:  ['Ooh, mixing!', 'Swirly swirly!', 'What will it be?'],
+  result:  ['Wow! Look at that!', 'Beautiful!', 'Amazing color!', 'You made it!'],
+  wrong:   ['Oops! Try again!', 'Not quite!', 'Hmm, close!'],
+  right:   ['You got it!', 'Genius!', 'Color master!', 'Nailed it!'],
+  newFind: ['NEW color discovered!', 'Added to your sticker book!'],
+  paint:   ['Paint time!', 'Let\'s create art!', 'Be creative!'],
+};
+const mascotFaces = {
+  idle: '🎨', mixing: '😮', result: '🤩', wrong: '😅', right: '🥳', newFind: '✨', paint: '🖌️',
+};
+
+function setMascot(mood) {
+  const msgs = mascotMessages[mood] || mascotMessages.idle;
+  mascotSpeech.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  mascotFace.textContent = mascotFaces[mood] || '🎨';
+}
+
+/* ---------- THEME ---------- */
+let darkMode = localStorage.getItem('colorMixerDark') === 'true';
+const themeBtn = document.getElementById('themeBtn');
+function applyTheme() {
+  document.body.classList.toggle('dark', darkMode);
+  themeBtn.textContent = darkMode ? '☀️' : '🌙';
+  localStorage.setItem('colorMixerDark', darkMode);
+}
+themeBtn.addEventListener('click', () => { darkMode = !darkMode; applyTheme(); });
+applyTheme();
+
+/* ---------- SOUND TOGGLE ---------- */
+const soundBtn = document.getElementById('soundBtn');
+soundBtn.addEventListener('click', () => {
+  soundOn = !soundOn;
+  soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  soundBtn.classList.toggle('muted', !soundOn);
+});
+
+/* ---------- FULLSCREEN ---------- */
+document.getElementById('fullscreenBtn').addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+/* ---------- TABS ---------- */
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+function switchTab(name) {
+  tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  tabContents.forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+  if (name === 'mix') setMascot('idle');
+  if (name === 'quiz') { setMascot('idle'); startQuiz(); }
+  if (name === 'paint') setMascot('paint');
+  if (name === 'collection') renderCollection();
+}
+tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+/* ---------- CONFETTI ---------- */
+function spawnConfetti() {
+  sfxConfetti();
+  const colors = ['#e74c3c','#f1c40f','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c'];
+  for (let i = 0; i < 45; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    el.style.animationDelay = (Math.random() * 0.5) + 's';
+    el.style.width = (6 + Math.random() * 8) + 'px';
+    el.style.height = (6 + Math.random() * 8) + 'px';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+/* ==========================================================================
+   MIX MODE
+   ========================================================================== */
+const mixPalette = document.getElementById('mixPalette');
+const pick1 = document.getElementById('pick1');
+const pick2 = document.getElementById('pick2');
+const pick3 = document.getElementById('pick3');
+const plus3 = document.getElementById('plus3');
+const pickResult = document.getElementById('pickResult');
+const bowl = document.getElementById('bowl');
+const bowlDrop1 = document.getElementById('bowlDrop1');
+const bowlDrop2 = document.getElementById('bowlDrop2');
+const bowlDrop3 = document.getElementById('bowlDrop3');
+const bowlSwirl = document.getElementById('bowlSwirl');
+const bowlEmoji = document.getElementById('bowlEmoji');
+const resultName = document.getElementById('resultName');
+const resultRecipe = document.getElementById('resultRecipe');
+const resetBtn = document.getElementById('resetBtn');
+const add3rdBtn = document.getElementById('add3rdBtn');
+const paintWithBtn = document.getElementById('paintWithBtn');
+
+let mixPicked = [];
+let lastMixResult = null;
+let intermediateMix = null;  // result after 2 colors, used when adding 3rd
+let mixPhase = 'picking';    // 'picking' | 'result2' | 'picking3' | 'result3'
+let dragData = null;
+
+// Build palette
+function buildPalette(container, colors, onPick, idPrefix) {
+  container.innerHTML = '';
+  const groups = [
+    { label: 'Primary', items: colors.filter(c => c.type === 'primary') },
+    { label: 'Secondary', items: colors.filter(c => c.type === 'secondary') },
+    { label: 'Extra', items: colors.filter(c => c.type === 'extra') },
+  ];
+  groups.forEach(g => {
+    if (g.items.length === 0) return;
+    const lbl = document.createElement('div');
+    lbl.className = 'group-label';
+    lbl.textContent = g.label;
+    container.appendChild(lbl);
+    const row = document.createElement('div');
+    row.className = 'color-row';
+    g.items.forEach(c => {
+      const btn = document.createElement('div');
+      btn.className = 'color-btn';
+      btn.style.background = c.hex;
+      btn.innerHTML = `<span class="label">${c.name}</span>`;
+      btn.dataset.name = c.name;
+      btn.dataset.hex = c.hex;
+      btn.addEventListener('click', () => onPick(c));
+      // Drag (mouse)
+      btn.draggable = true;
+      btn.addEventListener('dragstart', e => {
+        dragData = c;
+        btn.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', c.name);
+      });
+      btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
+      // Touch drag
+      btn.addEventListener('touchstart', e => { dragData = c; }, { passive: true });
+      row.appendChild(btn);
+    });
+    container.appendChild(row);
+  });
+}
+
+buildPalette(mixPalette, ALL_PALETTE, mixPickColor, 'mix');
+
+// Bowl drop zone
+function canPickMore() {
+  return mixPhase === 'picking' && mixPicked.length < 2 || mixPhase === 'picking3';
+}
+
+bowl.addEventListener('dragover', e => { e.preventDefault(); if (canPickMore()) bowl.classList.add('drag-over'); });
+bowl.addEventListener('dragleave', () => bowl.classList.remove('drag-over'));
+bowl.addEventListener('drop', e => {
+  e.preventDefault();
+  bowl.classList.remove('drag-over');
+  if (dragData && canPickMore()) {
+    sfxDrop();
+    mixPickColor(dragData);
+    dragData = null;
+  }
+});
+// Touch drop on bowl
+bowl.addEventListener('touchend', e => {
+  if (dragData && canPickMore()) {
+    const touch = e.changedTouches[0];
+    const rect = bowl.getBoundingClientRect();
+    if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+        touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+      sfxDrop();
+      mixPickColor(dragData);
+    }
+    dragData = null;
+  }
+}, { passive: true });
+
+function mixPickColor(color) {
+  // Phase: picking 3rd color
+  if (mixPhase === 'picking3') {
+    mixPicked.push(color);
+    sfxPick();
+    pick3.style.background = color.hex;
+    pick3.classList.add('filled');
+    bowlDrop3.style.background = color.hex;
+
+    setMascot('mixing');
+    sfxMix();
+    bowlSwirl.style.setProperty('--c1', intermediateMix.hex);
+    bowlSwirl.style.setProperty('--c2', color.hex);
+    bowlSwirl.classList.remove('active');
+    void bowlSwirl.offsetWidth; // force reflow to restart animation
+    bowlSwirl.classList.add('active');
+    mixPhase = 'result3';
+    setTimeout(showMixResult3, 900);
+    return;
+  }
+
+  // Phase: picking first two
+  if (mixPhase !== 'picking' || mixPicked.length >= 2) return;
+  sfxPick();
+  mixPicked.push(color);
+
+  const slot = mixPicked.length === 1 ? pick1 : pick2;
+  slot.style.background = color.hex;
+  slot.classList.add('filled');
+
+  // Bowl fill
+  const drop = mixPicked.length === 1 ? bowlDrop1 : bowlDrop2;
+  drop.style.background = color.hex;
+
+  const btn = mixPalette.querySelector(`[data-name="${color.name}"]`);
+  if (btn && mixPicked.length === 1) btn.classList.add('selected');
+
+  if (mixPicked.length === 2) {
+    setMascot('mixing');
+    sfxMix();
+    bowlSwirl.style.setProperty('--c1', mixPicked[0].hex);
+    bowlSwirl.style.setProperty('--c2', mixPicked[1].hex);
+    bowlSwirl.classList.add('active');
+    setTimeout(showMixResult2, 900);
+  }
+}
+
+function showMixResult2() {
+  const a = mixPicked[0].name, b = mixPicked[1].name;
+  const mix = lookupMix(a, b);
+
+  if (mix) {
+    intermediateMix = mix;
+    lastMixResult = mix;
+    bowl.style.background = mix.hex;
+    bowl.classList.add('has-result');
+    bowlDrop1.style.background = mix.hex;
+    bowlDrop2.style.background = mix.hex;
+    bowlEmoji.textContent = mix.emoji;
+    pickResult.style.background = mix.hex;
+    pickResult.classList.add('filled');
+    resultName.textContent = mix.name + '!';
+    resultRecipe.textContent = a + ' + ' + b + ' = ' + mix.name;
+    sfxSuccess();
+
+    const isNew = discover(mix.name, a + ' + ' + b);
+    if (isNew) {
+      setMascot('newFind');
+    } else {
+      setMascot('result');
+    }
+    spawnConfetti();
+    mixPhase = 'result2';
+    add3rdBtn.classList.remove('btn-hide');
+    paintWithBtn.classList.remove('btn-hide');
+  } else {
+    lastMixResult = null;
+    intermediateMix = null;
+    resultName.textContent = 'Hmm...';
+    resultRecipe.textContent = 'Try a different combo!';
+    setMascot('wrong');
+    mixPhase = 'result2';
+  }
+  resetBtn.classList.remove('btn-hide');
+}
+
+// "Add 3rd color" button
+add3rdBtn.addEventListener('click', () => {
+  mixPhase = 'picking3';
+  add3rdBtn.classList.add('btn-hide');
+  paintWithBtn.classList.add('btn-hide');
+  // Show the 3rd pick slot
+  plus3.classList.remove('btn-hide');
+  pick3.classList.remove('btn-hide');
+  // Re-enable palette & bowl for another drop
+  bowl.classList.remove('has-result');
+  bowlEmoji.textContent = '';
+  bowlSwirl.classList.remove('active');
+  // Restore bowl to show intermediate color + empty 3rd
+  bowlDrop1.style.background = intermediateMix.hex;
+  bowlDrop2.style.background = intermediateMix.hex;
+  bowlDrop3.style.background = 'transparent';
+  mixPalette.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+  setMascot('idle');
+  mascotSpeech.textContent = 'Pick a 3rd color!';
+});
+
+function showMixResult3() {
+  const thirdColor = mixPicked[2];
+  // Look up: intermediateMix.name + thirdColor.name
+  const mix = lookupMix(intermediateMix.name, thirdColor.name);
+  const a = mixPicked[0].name, b = mixPicked[1].name, c = thirdColor.name;
+
+  if (mix) {
+    lastMixResult = mix;
+    bowl.style.background = mix.hex;
+    bowl.classList.add('has-result');
+    bowlDrop1.style.background = mix.hex;
+    bowlDrop2.style.background = mix.hex;
+    bowlDrop3.style.background = mix.hex;
+    bowlEmoji.textContent = mix.emoji;
+    pickResult.style.background = mix.hex;
+    pickResult.classList.add('filled');
+    resultName.textContent = mix.name + '!';
+    resultRecipe.textContent = a + ' + ' + b + ' + ' + c + ' = ' + mix.name;
+    sfxSuccess();
+
+    const isNew = discover(mix.name, a + ' + ' + b + ' + ' + c);
+    if (isNew) {
+      setMascot('newFind');
+    } else {
+      setMascot('result');
+    }
+    spawnConfetti();
+    paintWithBtn.classList.remove('btn-hide');
+  } else {
+    lastMixResult = null;
+    resultName.textContent = 'Hmm...';
+    resultRecipe.textContent = a + ' + ' + b + ' + ' + c + ' = ???';
+    setMascot('wrong');
+  }
+  resetBtn.classList.remove('btn-hide');
+}
+
+resetBtn.addEventListener('click', resetMix);
+function resetMix() {
+  mixPicked = [];
+  lastMixResult = null;
+  intermediateMix = null;
+  mixPhase = 'picking';
+  pick1.style.background = '';
+  pick2.style.background = '';
+  pick3.style.background = '';
+  pickResult.style.background = '';
+  pick1.classList.remove('filled');
+  pick2.classList.remove('filled');
+  pick3.classList.remove('filled');
+  pickResult.classList.remove('filled');
+  plus3.classList.add('btn-hide');
+  pick3.classList.add('btn-hide');
+  bowl.style.background = '';
+  bowl.classList.remove('has-result');
+  bowlDrop1.style.background = 'transparent';
+  bowlDrop2.style.background = 'transparent';
+  bowlDrop3.style.background = 'transparent';
+  bowlSwirl.classList.remove('active');
+  bowlEmoji.textContent = '';
+  resultName.textContent = '';
+  resultRecipe.textContent = '';
+  resetBtn.classList.add('btn-hide');
+  add3rdBtn.classList.add('btn-hide');
+  paintWithBtn.classList.add('btn-hide');
+  mixPalette.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+  setMascot('idle');
+}
+
+paintWithBtn.addEventListener('click', () => {
+  if (lastMixResult) {
+    currentPaintColor = lastMixResult.hex;
+    switchTab('paint');
+    updatePaintToolbar();
+  }
+});
+
+/* ==========================================================================
+   QUIZ MODE
+   ========================================================================== */
+const quizTarget = document.getElementById('quizTarget');
+const quizTargetName = document.getElementById('quizTargetName');
+const quizPaletteEl = document.getElementById('quizPalette');
+const qPick1 = document.getElementById('qPick1');
+const qPick2 = document.getElementById('qPick2');
+const quizFeedback = document.getElementById('quizFeedback');
+const quizScoreEl = document.getElementById('quizScore');
+const quizStreakEl = document.getElementById('quizStreak');
+const quizStarsEl = document.getElementById('quizStars');
+const nextQuizBtn = document.getElementById('nextQuizBtn');
+
+let quizPicked = [];
+let quizAnswer = null;
+let quizScore = 0;
+let quizStreak = 0;
+let quizStarCount = 0;
+
+// Get quizzable mixes (exclude same+same)
+function getQuizzableMixes() {
+  return Object.entries(MIXES).filter(([key, val]) => {
+    const [a, b] = key.split('+');
+    return a !== b;
+  });
+}
+
+function startQuiz() {
+  quizPicked = [];
+  qPick1.style.background = ''; qPick1.classList.remove('filled');
+  qPick2.style.background = ''; qPick2.classList.remove('filled');
+  quizFeedback.textContent = '';
+  nextQuizBtn.classList.add('btn-hide');
+
+  const mixes = getQuizzableMixes();
+  const [key, mix] = mixes[Math.floor(Math.random() * mixes.length)];
+  quizAnswer = { key, ...mix };
+
+  quizTarget.style.background = mix.hex;
+  quizTarget.textContent = mix.emoji;
+  quizTargetName.textContent = mix.name;
+
+  buildPalette(quizPaletteEl, ALL_PALETTE, quizPickColor, 'quiz');
+}
+
+function quizPickColor(color) {
+  if (quizPicked.length >= 2) return;
+  sfxPick();
+  quizPicked.push(color);
+
+  const slot = quizPicked.length === 1 ? qPick1 : qPick2;
+  slot.style.background = color.hex;
+  slot.classList.add('filled');
+
+  if (quizPicked.length === 2) {
+    const a = quizPicked[0].name, b = quizPicked[1].name;
+    const mix = lookupMix(a, b);
+
+    if (mix && mix.name === quizAnswer.name) {
+      quizScore += 10;
+      quizStreak++;
+      quizStarCount++;
+      sfxSuccess();
+      spawnConfetti();
+      setMascot('right');
+      quizFeedback.textContent = '✅ Correct!';
+      quizFeedback.style.color = '#2ecc71';
+      discover(mix.name, a + ' + ' + b);
+    } else {
+      quizStreak = 0;
+      sfxWrong();
+      setMascot('wrong');
+      const [ca, cb] = quizAnswer.key.split('+');
+      quizFeedback.textContent = '❌ It was ' + ca + ' + ' + cb + '!';
+      quizFeedback.style.color = '#e74c3c';
+    }
+    quizScoreEl.textContent = quizScore;
+    quizStreakEl.textContent = quizStreak;
+    renderStars();
+    nextQuizBtn.classList.remove('btn-hide');
+  }
+}
+
+function renderStars() {
+  quizStarsEl.innerHTML = '';
+  for (let i = 0; i < Math.min(quizStarCount, 20); i++) {
+    const s = document.createElement('span');
+    s.className = 'star earned';
+    s.textContent = '⭐';
+    s.style.animationDelay = (i * 0.05) + 's';
+    quizStarsEl.appendChild(s);
+  }
+}
+
+nextQuizBtn.addEventListener('click', startQuiz);
+
+/* ==========================================================================
+   PAINT MODE
+   ========================================================================== */
+const paintCanvas = document.getElementById('paintCanvas');
+const paintCtx = paintCanvas.getContext('2d');
+const paintToolbar = document.getElementById('paintToolbar');
+const brushSlider = document.getElementById('brushSlider');
+const clearCanvasBtn = document.getElementById('clearCanvasBtn');
+
+let currentPaintColor = '#e74c3c';
+let painting = false;
+
+// Resize canvas for retina
+function resizePaintCanvas() {
+  const rect = paintCanvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  paintCanvas.width = rect.width * dpr;
+  paintCanvas.height = rect.height * dpr;
+  paintCtx.scale(dpr, dpr);
+  paintCanvas.style.width = rect.width + 'px';
+  paintCanvas.style.height = rect.height + 'px';
+  paintCtx.fillStyle = '#ffffff';
+  paintCtx.fillRect(0, 0, rect.width, rect.height);
+}
+
+// Build paint toolbar with all discovered + basic colors
+function updatePaintToolbar() {
+  paintToolbar.innerHTML = '';
+  const paintColors = [...ALL_PALETTE.map(c => c.hex)];
+  // Add discovered mix colors
+  Object.values(MIXES).forEach(m => {
+    if (!paintColors.includes(m.hex)) paintColors.push(m.hex);
+  });
+
+  paintColors.forEach(hex => {
+    const btn = document.createElement('div');
+    btn.className = 'paint-color-btn' + (hex === currentPaintColor ? ' active' : '');
+    btn.style.background = hex;
+    btn.addEventListener('click', () => {
+      currentPaintColor = hex;
+      paintToolbar.querySelectorAll('.paint-color-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+    paintToolbar.appendChild(btn);
+  });
+}
+
+function getCanvasPos(e) {
+  const rect = paintCanvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: clientX - rect.left, y: clientY - rect.top };
+}
+
+function drawDot(pos) {
+  paintCtx.beginPath();
+  paintCtx.arc(pos.x, pos.y, brushSlider.value / 2, 0, Math.PI * 2);
+  paintCtx.fillStyle = currentPaintColor;
+  paintCtx.fill();
+}
+
+function drawLine(from, to) {
+  paintCtx.beginPath();
+  paintCtx.moveTo(from.x, from.y);
+  paintCtx.lineTo(to.x, to.y);
+  paintCtx.strokeStyle = currentPaintColor;
+  paintCtx.lineWidth = brushSlider.value;
+  paintCtx.lineCap = 'round';
+  paintCtx.stroke();
+}
+
+let lastPos = null;
+paintCanvas.addEventListener('mousedown', e => { painting = true; lastPos = getCanvasPos(e); drawDot(lastPos); sfxSplat(); });
+paintCanvas.addEventListener('mousemove', e => { if (!painting) return; const pos = getCanvasPos(e); drawLine(lastPos, pos); lastPos = pos; });
+paintCanvas.addEventListener('mouseup', () => { painting = false; lastPos = null; });
+paintCanvas.addEventListener('mouseleave', () => { painting = false; lastPos = null; });
+
+paintCanvas.addEventListener('touchstart', e => { e.preventDefault(); painting = true; lastPos = getCanvasPos(e); drawDot(lastPos); sfxSplat(); }, { passive: false });
+paintCanvas.addEventListener('touchmove', e => { e.preventDefault(); if (!painting) return; const pos = getCanvasPos(e); drawLine(lastPos, pos); lastPos = pos; }, { passive: false });
+paintCanvas.addEventListener('touchend', () => { painting = false; lastPos = null; });
+
+clearCanvasBtn.addEventListener('click', () => {
+  const rect = paintCanvas.getBoundingClientRect();
+  paintCtx.fillStyle = '#ffffff';
+  paintCtx.fillRect(0, 0, rect.width, rect.height);
+});
+
+// Init paint on first tab switch
+let paintInited = false;
+const origSwitchTab = switchTab;
+// We'll hook into tab switching
+const paintTabBtn = document.querySelector('[data-tab="paint"]');
+const paintObserver = new MutationObserver(() => {
+  if (document.getElementById('tab-paint').classList.contains('active') && !paintInited) {
+    paintInited = true;
+    setTimeout(() => { resizePaintCanvas(); updatePaintToolbar(); }, 50);
+  }
+});
+paintObserver.observe(document.getElementById('tab-paint'), { attributes: true, attributeFilter: ['class'] });
+
+/* ==========================================================================
+   FREE MIX MODE
+   ========================================================================== */
+const sliderR = document.getElementById('sliderR');
+const sliderG = document.getElementById('sliderG');
+const sliderB = document.getElementById('sliderB');
+const valR = document.getElementById('valR');
+const valG = document.getElementById('valG');
+const valB = document.getElementById('valB');
+const freePreview = document.getElementById('freePreview');
+const shadeRow = document.getElementById('shadeRow');
+const useFreeColorBtn = document.getElementById('useFreeColorBtn');
+
+function updateFreeColor() {
+  const r = +sliderR.value, g = +sliderG.value, b = +sliderB.value;
+  valR.textContent = r;
+  valG.textContent = g;
+  valB.textContent = b;
+  const hex = `rgb(${r},${g},${b})`;
+  freePreview.style.background = hex;
+  freePreview.textContent = `${r}, ${g}, ${b}`;
+
+  // Build shade row (white → current → black)
+  shadeRow.innerHTML = '';
+  for (let i = 0; i <= 8; i++) {
+    const factor = i / 8;
+    let sr, sg, sb;
+    if (i <= 4) {
+      // blend with white
+      const t = i / 4;
+      sr = Math.round(255 + (r - 255) * t);
+      sg = Math.round(255 + (g - 255) * t);
+      sb = Math.round(255 + (b - 255) * t);
+    } else {
+      // blend with black
+      const t = (i - 4) / 4;
+      sr = Math.round(r * (1 - t));
+      sg = Math.round(g * (1 - t));
+      sb = Math.round(b * (1 - t));
+    }
+    const chip = document.createElement('div');
+    chip.className = 'shade-chip';
+    chip.style.background = `rgb(${sr},${sg},${sb})`;
+    chip.title = `${sr}, ${sg}, ${sb}`;
+    chip.addEventListener('click', () => {
+      currentPaintColor = `rgb(${sr},${sg},${sb})`;
+      switchTab('paint');
+      updatePaintToolbar();
+    });
+    shadeRow.appendChild(chip);
+  }
+}
+
+[sliderR, sliderG, sliderB].forEach(s => s.addEventListener('input', updateFreeColor));
+updateFreeColor();
+
+useFreeColorBtn.addEventListener('click', () => {
+  currentPaintColor = `rgb(${sliderR.value},${sliderG.value},${sliderB.value})`;
+  switchTab('paint');
+  updatePaintToolbar();
+});
+
+/* ==========================================================================
+   COLLECTION / STICKER BOOK
+   ========================================================================== */
+const collectionGrid = document.getElementById('collectionGrid');
+const collectionProgress = document.getElementById('collectionProgress');
+
+function getAllPossibleColors() {
+  const all = [];
+  const seen = new Set();
+  Object.entries(MIXES).forEach(([key, mix]) => {
+    if (!seen.has(mix.name)) {
+      seen.add(mix.name);
+      all.push({ ...mix, recipe: key });
+    }
+  });
+  return all;
+}
+
+function renderCollection() {
+  const all = getAllPossibleColors();
+  collectionGrid.innerHTML = '';
+  const total = all.length;
+  const found = all.filter(c => discovered[c.name]).length;
+  collectionProgress.textContent = `${found} / ${total} colors discovered`;
+
+  all.forEach(color => {
+    const isDiscovered = !!discovered[color.name];
+    const sticker = document.createElement('div');
+    sticker.className = 'sticker' + (isDiscovered ? '' : ' locked');
+
+    const circle = document.createElement('div');
+    circle.className = 'sticker-circle';
+    circle.style.background = color.hex;
+    circle.textContent = isDiscovered ? color.emoji : '❓';
+
+    const name = document.createElement('div');
+    name.className = 'sticker-name';
+    name.textContent = isDiscovered ? color.name : '???';
+
+    const recipe = document.createElement('div');
+    recipe.className = 'sticker-recipe';
+    if (isDiscovered && discovered[color.name]) {
+      recipe.textContent = discovered[color.name];
+    } else if (!isDiscovered) {
+      recipe.textContent = '? + ?';
+    }
+
+    sticker.appendChild(circle);
+    sticker.appendChild(name);
+    sticker.appendChild(recipe);
+
+    collectionGrid.appendChild(sticker);
+  });
+}
+
+/* ==========================================================================
+   INIT
+   ========================================================================== */
+setMascot('idle');
+renderStars();
+
+</script>
+</body>
+</html>
