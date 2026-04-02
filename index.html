@@ -346,10 +346,8 @@
       flex-direction: column;
     }
     .paint-area.expanded .paint-canvas {
-      flex: 1;
-      width: 100% !important;
-      max-width: 100% !important;
       border-radius: 4px;
+      max-width: none;
     }
     .paint-toolbar {
       display: flex;
@@ -1375,13 +1373,17 @@ let painting = false;
 let eraserMode = false;
 let canvasExpanded = false;
 
+// Fixed internal canvas size (logical pixels, before DPR scaling)
+// Set once on init, never changes — expand/shrink only changes CSS display size
+const CANVAS_W = 960;
+const CANVAS_H = 720;
+
 // Undo/redo stacks (store ImageData snapshots)
 let undoStack = [];
 let redoStack = [];
 const MAX_UNDO = 30;
 
 function saveUndoState() {
-  const dpr = window.devicePixelRatio || 1;
   undoStack.push(paintCtx.getImageData(0, 0, paintCanvas.width, paintCanvas.height));
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack = [];
@@ -1431,41 +1433,33 @@ function drawBrushPreview() {
 
 brushSlider.addEventListener('input', drawBrushPreview);
 
-// Resize canvas
-function resizePaintCanvas() {
-  // Save current content if any
-  let savedData = null;
-  if (paintCanvas.width > 0 && paintCanvas.height > 0) {
-    try { savedData = paintCtx.getImageData(0, 0, paintCanvas.width, paintCanvas.height); } catch(e) {}
-  }
-
+// Init canvas once at fixed internal resolution
+function initPaintCanvas() {
   const dpr = window.devicePixelRatio || 1;
-  let cssW, cssH;
+  paintCanvas.width = CANVAS_W * dpr;
+  paintCanvas.height = CANVAS_H * dpr;
+  paintCtx.scale(dpr, dpr);
+  paintCtx.fillStyle = '#ffffff';
+  paintCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  updateCanvasDisplaySize();
+}
 
+// Only changes CSS display size — internal resolution stays fixed
+function updateCanvasDisplaySize() {
   if (canvasExpanded) {
-    // Calculate available space: full viewport minus toolbar/controls above canvas
     const areaRect = paintArea.getBoundingClientRect();
     const canvasRect = paintCanvas.getBoundingClientRect();
     const usedAbove = canvasRect.top - areaRect.top;
-    cssW = areaRect.width - 16; // padding
-    cssH = window.innerHeight - usedAbove - 16;
+    const cssW = areaRect.width - 16;
+    const cssH = window.innerHeight - usedAbove - 16;
+    paintCanvas.style.width = cssW + 'px';
+    paintCanvas.style.height = cssH + 'px';
   } else {
     const parentW = paintArea.parentElement ? paintArea.parentElement.clientWidth : 500;
-    cssW = Math.min(parentW - 32, 500);
-    cssH = 400;
-  }
-
-  paintCanvas.style.width = cssW + 'px';
-  paintCanvas.style.height = cssH + 'px';
-  paintCanvas.width = cssW * dpr;
-  paintCanvas.height = cssH * dpr;
-  paintCtx.scale(dpr, dpr);
-  paintCtx.fillStyle = '#ffffff';
-  paintCtx.fillRect(0, 0, cssW, cssH);
-
-  // Restore content
-  if (savedData) {
-    try { paintCtx.putImageData(savedData, 0, 0); } catch(e) {}
+    const cssW = Math.min(parentW - 32, 500);
+    const cssH = Math.round(cssW * (CANVAS_H / CANVAS_W));
+    paintCanvas.style.width = cssW + 'px';
+    paintCanvas.style.height = cssH + 'px';
   }
 }
 
@@ -1525,15 +1519,14 @@ expandCanvasBtn.addEventListener('click', () => {
   paintArea.classList.toggle('expanded', canvasExpanded);
   expandCanvasBtn.textContent = canvasExpanded ? '⊗' : '⛶';
   expandCanvasBtn.title = canvasExpanded ? 'Shrink Canvas' : 'Expand Canvas';
-  setTimeout(resizePaintCanvas, 100);
+  setTimeout(updateCanvasDisplaySize, 100);
 });
 
 // Clear
 clearCanvasBtn.addEventListener('click', () => {
   saveUndoState();
-  const rect = paintCanvas.getBoundingClientRect();
   paintCtx.fillStyle = '#ffffff';
-  paintCtx.fillRect(0, 0, rect.width, rect.height);
+  paintCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 });
 
 // Drawing
@@ -1541,7 +1534,11 @@ function getCanvasPos(e) {
   const rect = paintCanvas.getBoundingClientRect();
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  return { x: clientX - rect.left, y: clientY - rect.top };
+  // Map from CSS display coords to internal logical coords
+  return {
+    x: (clientX - rect.left) * (CANVAS_W / rect.width),
+    y: (clientY - rect.top) * (CANVAS_H / rect.height),
+  };
 }
 
 function getDrawColor() {
@@ -1608,7 +1605,7 @@ const paintObserver = new MutationObserver(() => {
   if (document.getElementById('tab-paint').classList.contains('active') && !paintInited) {
     paintInited = true;
     setTimeout(() => {
-      resizePaintCanvas();
+      initPaintCanvas();
       updatePaintToolbar();
       drawBrushPreview();
       updateUndoRedoButtons();
