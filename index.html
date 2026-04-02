@@ -341,13 +341,14 @@
       z-index: 200;
       background: var(--bg);
       padding: 8px;
-      overflow-y: auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .paint-area.expanded .paint-canvas {
       flex: 1;
-      width: 100%;
-      height: auto;
-      min-height: 60vh;
+      width: 100% !important;
+      max-width: 100% !important;
       border-radius: 4px;
     }
     .paint-toolbar {
@@ -1438,15 +1439,29 @@ function resizePaintCanvas() {
     try { savedData = paintCtx.getImageData(0, 0, paintCanvas.width, paintCanvas.height); } catch(e) {}
   }
 
-  const rect = paintCanvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  paintCanvas.width = rect.width * dpr;
-  paintCanvas.height = rect.height * dpr;
+  let cssW, cssH;
+
+  if (canvasExpanded) {
+    // Calculate available space: full viewport minus toolbar/controls above canvas
+    const areaRect = paintArea.getBoundingClientRect();
+    const canvasRect = paintCanvas.getBoundingClientRect();
+    const usedAbove = canvasRect.top - areaRect.top;
+    cssW = areaRect.width - 16; // padding
+    cssH = window.innerHeight - usedAbove - 16;
+  } else {
+    const parentW = paintArea.parentElement ? paintArea.parentElement.clientWidth : 500;
+    cssW = Math.min(parentW - 32, 500);
+    cssH = 400;
+  }
+
+  paintCanvas.style.width = cssW + 'px';
+  paintCanvas.style.height = cssH + 'px';
+  paintCanvas.width = cssW * dpr;
+  paintCanvas.height = cssH * dpr;
   paintCtx.scale(dpr, dpr);
-  paintCanvas.style.width = rect.width + 'px';
-  paintCanvas.style.height = rect.height + 'px';
   paintCtx.fillStyle = '#ffffff';
-  paintCtx.fillRect(0, 0, rect.width, rect.height);
+  paintCtx.fillRect(0, 0, cssW, cssH);
 
   // Restore content
   if (savedData) {
