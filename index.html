@@ -331,17 +331,35 @@
     }
 
     /* ===== PAINT MODE ===== */
-    .paint-area { width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: center; }
+    .paint-area { width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: center; transition: all 0.3s; }
+    .paint-area.expanded {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw !important;
+      max-width: 100vw !important;
+      height: 100vh;
+      z-index: 200;
+      background: var(--bg);
+      padding: 8px;
+      overflow-y: auto;
+    }
+    .paint-area.expanded .paint-canvas {
+      flex: 1;
+      width: 100%;
+      height: auto;
+      min-height: 60vh;
+      border-radius: 4px;
+    }
     .paint-toolbar {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       flex-wrap: wrap;
       justify-content: center;
     }
     .paint-color-btn {
-      width: 40px; height: 40px;
+      width: 36px; height: 36px;
       border-radius: 50%;
       border: 3px solid var(--bg2);
       cursor: pointer;
@@ -349,9 +367,38 @@
     }
     .paint-color-btn:hover { transform: scale(1.15); }
     .paint-color-btn.active { border-color: var(--text); transform: scale(1.15); }
-    .brush-size-group { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+    .paint-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .brush-size-group { display: flex; align-items: center; gap: 6px; }
     .brush-size-group label { font-size: 0.85rem; color: var(--text2); }
     .brush-slider { width: 80px; }
+    .brush-preview {
+      border: 2px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+    }
+    .paint-buttons { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+    .paint-tool-btn {
+      width: 38px; height: 38px;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      background: var(--bg2);
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s, background 0.15s;
+    }
+    .paint-tool-btn:hover { transform: scale(1.1); }
+    .paint-tool-btn:active { transform: scale(0.9); }
+    .paint-tool-btn.active { border-color: var(--text); background: var(--border); }
+    .paint-tool-btn.danger:hover { background: #ffcccc; }
+    .paint-tool-btn:disabled { opacity: 0.3; cursor: default; transform: none; }
     .paint-canvas {
       border: 3px solid var(--border);
       border-radius: 12px;
@@ -360,6 +407,7 @@
       touch-action: none;
       max-width: 100%;
     }
+    .paint-canvas.eraser-cursor { cursor: cell; }
 
     /* ===== FREE MIX MODE ===== */
     .free-mix-area { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; }
@@ -593,12 +641,22 @@
 
   <!-- ============ PAINT TAB ============ -->
   <div class="tab-content" id="tab-paint">
-    <div class="paint-area">
+    <div class="paint-area" id="paintArea">
       <div class="paint-toolbar" id="paintToolbar"></div>
-      <div class="brush-size-group">
-        <label>Brush:</label>
-        <input type="range" class="brush-slider" id="brushSlider" min="4" max="50" value="16">
-        <button class="btn btn-red" style="padding:6px 14px;font-size:0.85rem;" id="clearCanvasBtn">Clear</button>
+      <div class="paint-controls">
+        <div class="brush-size-group">
+          <label>Brush:</label>
+          <input type="range" class="brush-slider" id="brushSlider" min="4" max="50" value="16">
+          <canvas class="brush-preview" id="brushPreview" width="60" height="40"></canvas>
+        </div>
+        <div class="paint-buttons">
+          <button class="paint-tool-btn" id="eraserBtn" title="Eraser">🧹</button>
+          <button class="paint-tool-btn" id="undoBtn" title="Undo">↩️</button>
+          <button class="paint-tool-btn" id="redoBtn" title="Redo">↪️</button>
+          <button class="paint-tool-btn" id="saveBtn" title="Save">💾</button>
+          <button class="paint-tool-btn" id="expandCanvasBtn" title="Expand Canvas">⛶</button>
+          <button class="paint-tool-btn danger" id="clearCanvasBtn" title="Clear">🗑️</button>
+        </div>
       </div>
       <canvas class="paint-canvas" id="paintCanvas" width="480" height="400"></canvas>
     </div>
@@ -1297,17 +1355,89 @@ nextQuizBtn.addEventListener('click', startQuiz);
 /* ==========================================================================
    PAINT MODE
    ========================================================================== */
+const paintArea = document.getElementById('paintArea');
 const paintCanvas = document.getElementById('paintCanvas');
 const paintCtx = paintCanvas.getContext('2d');
 const paintToolbar = document.getElementById('paintToolbar');
 const brushSlider = document.getElementById('brushSlider');
+const brushPreview = document.getElementById('brushPreview');
+const brushPreviewCtx = brushPreview.getContext('2d');
 const clearCanvasBtn = document.getElementById('clearCanvasBtn');
+const eraserBtn = document.getElementById('eraserBtn');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+const saveBtn = document.getElementById('saveBtn');
+const expandCanvasBtn = document.getElementById('expandCanvasBtn');
 
 let currentPaintColor = '#e74c3c';
 let painting = false;
+let eraserMode = false;
+let canvasExpanded = false;
 
-// Resize canvas for retina
+// Undo/redo stacks (store ImageData snapshots)
+let undoStack = [];
+let redoStack = [];
+const MAX_UNDO = 30;
+
+function saveUndoState() {
+  const dpr = window.devicePixelRatio || 1;
+  undoStack.push(paintCtx.getImageData(0, 0, paintCanvas.width, paintCanvas.height));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  redoStack.push(paintCtx.getImageData(0, 0, paintCanvas.width, paintCanvas.height));
+  const state = undoStack.pop();
+  paintCtx.putImageData(state, 0, 0);
+  updateUndoRedoButtons();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  undoStack.push(paintCtx.getImageData(0, 0, paintCanvas.width, paintCanvas.height));
+  const state = redoStack.pop();
+  paintCtx.putImageData(state, 0, 0);
+  updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons() {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
+
+// Brush preview
+function drawBrushPreview() {
+  const w = brushPreview.width, h = brushPreview.height;
+  brushPreviewCtx.clearRect(0, 0, w, h);
+  brushPreviewCtx.fillStyle = '#ffffff';
+  brushPreviewCtx.fillRect(0, 0, w, h);
+
+  const size = +brushSlider.value;
+  const color = eraserMode ? '#cccccc' : currentPaintColor;
+
+  // Draw a wavy line to show brush thickness
+  brushPreviewCtx.beginPath();
+  brushPreviewCtx.moveTo(6, h / 2);
+  brushPreviewCtx.bezierCurveTo(w * 0.25, h * 0.15, w * 0.45, h * 0.85, w - 6, h / 2);
+  brushPreviewCtx.strokeStyle = color;
+  brushPreviewCtx.lineWidth = Math.min(size, h - 4);
+  brushPreviewCtx.lineCap = 'round';
+  brushPreviewCtx.stroke();
+}
+
+brushSlider.addEventListener('input', drawBrushPreview);
+
+// Resize canvas
 function resizePaintCanvas() {
+  // Save current content if any
+  let savedData = null;
+  if (paintCanvas.width > 0 && paintCanvas.height > 0) {
+    try { savedData = paintCtx.getImageData(0, 0, paintCanvas.width, paintCanvas.height); } catch(e) {}
+  }
+
   const rect = paintCanvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   paintCanvas.width = rect.width * dpr;
@@ -1317,30 +1447,81 @@ function resizePaintCanvas() {
   paintCanvas.style.height = rect.height + 'px';
   paintCtx.fillStyle = '#ffffff';
   paintCtx.fillRect(0, 0, rect.width, rect.height);
+
+  // Restore content
+  if (savedData) {
+    try { paintCtx.putImageData(savedData, 0, 0); } catch(e) {}
+  }
 }
 
-// Build paint toolbar with all discovered + basic colors
+// Build paint toolbar
 function updatePaintToolbar() {
   paintToolbar.innerHTML = '';
   const paintColors = [...ALL_PALETTE.map(c => c.hex)];
-  // Add discovered mix colors
   Object.values(MIXES).forEach(m => {
     if (!paintColors.includes(m.hex)) paintColors.push(m.hex);
   });
 
   paintColors.forEach(hex => {
     const btn = document.createElement('div');
-    btn.className = 'paint-color-btn' + (hex === currentPaintColor ? ' active' : '');
+    btn.className = 'paint-color-btn' + (hex === currentPaintColor && !eraserMode ? ' active' : '');
     btn.style.background = hex;
     btn.addEventListener('click', () => {
       currentPaintColor = hex;
+      eraserMode = false;
+      eraserBtn.classList.remove('active');
+      paintCanvas.classList.remove('eraser-cursor');
       paintToolbar.querySelectorAll('.paint-color-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      drawBrushPreview();
     });
     paintToolbar.appendChild(btn);
   });
 }
 
+// Eraser
+eraserBtn.addEventListener('click', () => {
+  eraserMode = !eraserMode;
+  eraserBtn.classList.toggle('active', eraserMode);
+  paintCanvas.classList.toggle('eraser-cursor', eraserMode);
+  if (eraserMode) {
+    paintToolbar.querySelectorAll('.paint-color-btn').forEach(b => b.classList.remove('active'));
+  } else {
+    updatePaintToolbar();
+  }
+  drawBrushPreview();
+});
+
+// Undo / Redo
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
+// Save / Download
+saveBtn.addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'my-painting.png';
+  link.href = paintCanvas.toDataURL('image/png');
+  link.click();
+});
+
+// Expand / Shrink canvas
+expandCanvasBtn.addEventListener('click', () => {
+  canvasExpanded = !canvasExpanded;
+  paintArea.classList.toggle('expanded', canvasExpanded);
+  expandCanvasBtn.textContent = canvasExpanded ? '⊗' : '⛶';
+  expandCanvasBtn.title = canvasExpanded ? 'Shrink Canvas' : 'Expand Canvas';
+  setTimeout(resizePaintCanvas, 100);
+});
+
+// Clear
+clearCanvasBtn.addEventListener('click', () => {
+  saveUndoState();
+  const rect = paintCanvas.getBoundingClientRect();
+  paintCtx.fillStyle = '#ffffff';
+  paintCtx.fillRect(0, 0, rect.width, rect.height);
+});
+
+// Drawing
 function getCanvasPos(e) {
   const rect = paintCanvas.getBoundingClientRect();
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -1348,10 +1529,14 @@ function getCanvasPos(e) {
   return { x: clientX - rect.left, y: clientY - rect.top };
 }
 
+function getDrawColor() {
+  return eraserMode ? '#ffffff' : currentPaintColor;
+}
+
 function drawDot(pos) {
   paintCtx.beginPath();
   paintCtx.arc(pos.x, pos.y, brushSlider.value / 2, 0, Math.PI * 2);
-  paintCtx.fillStyle = currentPaintColor;
+  paintCtx.fillStyle = getDrawColor();
   paintCtx.fill();
 }
 
@@ -1359,37 +1544,60 @@ function drawLine(from, to) {
   paintCtx.beginPath();
   paintCtx.moveTo(from.x, from.y);
   paintCtx.lineTo(to.x, to.y);
-  paintCtx.strokeStyle = currentPaintColor;
+  paintCtx.strokeStyle = getDrawColor();
   paintCtx.lineWidth = brushSlider.value;
   paintCtx.lineCap = 'round';
   paintCtx.stroke();
 }
 
 let lastPos = null;
-paintCanvas.addEventListener('mousedown', e => { painting = true; lastPos = getCanvasPos(e); drawDot(lastPos); sfxSplat(); });
-paintCanvas.addEventListener('mousemove', e => { if (!painting) return; const pos = getCanvasPos(e); drawLine(lastPos, pos); lastPos = pos; });
-paintCanvas.addEventListener('mouseup', () => { painting = false; lastPos = null; });
-paintCanvas.addEventListener('mouseleave', () => { painting = false; lastPos = null; });
 
-paintCanvas.addEventListener('touchstart', e => { e.preventDefault(); painting = true; lastPos = getCanvasPos(e); drawDot(lastPos); sfxSplat(); }, { passive: false });
-paintCanvas.addEventListener('touchmove', e => { e.preventDefault(); if (!painting) return; const pos = getCanvasPos(e); drawLine(lastPos, pos); lastPos = pos; }, { passive: false });
-paintCanvas.addEventListener('touchend', () => { painting = false; lastPos = null; });
+function onPaintStart(e) {
+  saveUndoState();
+  painting = true;
+  lastPos = getCanvasPos(e);
+  drawDot(lastPos);
+  sfxSplat();
+}
 
-clearCanvasBtn.addEventListener('click', () => {
-  const rect = paintCanvas.getBoundingClientRect();
-  paintCtx.fillStyle = '#ffffff';
-  paintCtx.fillRect(0, 0, rect.width, rect.height);
+function onPaintMove(e) {
+  if (!painting) return;
+  const pos = getCanvasPos(e);
+  drawLine(lastPos, pos);
+  lastPos = pos;
+}
+
+function onPaintEnd() {
+  painting = false;
+  lastPos = null;
+}
+
+paintCanvas.addEventListener('mousedown', onPaintStart);
+paintCanvas.addEventListener('mousemove', onPaintMove);
+paintCanvas.addEventListener('mouseup', onPaintEnd);
+paintCanvas.addEventListener('mouseleave', onPaintEnd);
+
+paintCanvas.addEventListener('touchstart', e => { e.preventDefault(); onPaintStart(e); }, { passive: false });
+paintCanvas.addEventListener('touchmove', e => { e.preventDefault(); onPaintMove(e); }, { passive: false });
+paintCanvas.addEventListener('touchend', onPaintEnd);
+
+// Keyboard shortcuts for undo/redo
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
 });
 
 // Init paint on first tab switch
 let paintInited = false;
-const origSwitchTab = switchTab;
-// We'll hook into tab switching
-const paintTabBtn = document.querySelector('[data-tab="paint"]');
 const paintObserver = new MutationObserver(() => {
   if (document.getElementById('tab-paint').classList.contains('active') && !paintInited) {
     paintInited = true;
-    setTimeout(() => { resizePaintCanvas(); updatePaintToolbar(); }, 50);
+    setTimeout(() => {
+      resizePaintCanvas();
+      updatePaintToolbar();
+      drawBrushPreview();
+      updateUndoRedoButtons();
+    }, 50);
   }
 });
 paintObserver.observe(document.getElementById('tab-paint'), { attributes: true, attributeFilter: ['class'] });
