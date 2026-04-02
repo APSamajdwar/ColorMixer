@@ -742,6 +742,73 @@ function lookupMix(a, b) {
   return MIXES[a+'+'+b] || MIXES[b+'+'+a] || null;
 }
 
+/* ---------- RGB BLENDING FALLBACK ---------- */
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  return {
+    r: parseInt(hex.substring(0, 2), 16),
+    g: parseInt(hex.substring(2, 4), 16),
+    b: parseInt(hex.substring(4, 6), 16),
+  };
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+
+function blendHex(hex1, hex2) {
+  const c1 = hexToRgb(hex1), c2 = hexToRgb(hex2);
+  return rgbToHex(
+    (c1.r + c2.r) / 2,
+    (c1.g + c2.g) / 2,
+    (c1.b + c2.b) / 2,
+  );
+}
+
+// Find the closest named color for a blended result
+function closestColorName(hex) {
+  const target = hexToRgb(hex);
+  let bestName = 'Mystery Color';
+  let bestDist = Infinity;
+  const candidates = [
+    ...ALL_PALETTE.map(c => ({ name: c.name, hex: c.hex })),
+    ...Object.values(MIXES).map(m => ({ name: m.name, hex: m.hex })),
+  ];
+  const seen = new Set();
+  candidates.forEach(c => {
+    if (seen.has(c.name)) return;
+    seen.add(c.name);
+    const rgb = hexToRgb(c.hex);
+    const dist = (target.r - rgb.r) ** 2 + (target.g - rgb.g) ** 2 + (target.b - rgb.b) ** 2;
+    if (dist < bestDist) { bestDist = dist; bestName = c.name; }
+  });
+  return bestName;
+}
+
+function blendMix(hex1, hex2) {
+  const hex = blendHex(hex1, hex2);
+  const name = closestColorName(hex);
+  return { name, hex, emoji: '🎨' };
+}
+
+// Resolve a color name to its hex (palette or mix result)
+function nameToHex(name) {
+  const pal = ALL_PALETTE.find(c => c.name === name);
+  if (pal) return pal.hex;
+  const mix = Object.values(MIXES).find(m => m.name === name);
+  if (mix) return mix.hex;
+  return null;
+}
+
+// Enhanced lookup: try table first, fall back to RGB blend
+function mixColors(nameA, nameB) {
+  const table = lookupMix(nameA, nameB);
+  if (table) return table;
+  const hexA = nameToHex(nameA), hexB = nameToHex(nameB);
+  if (hexA && hexB) return blendMix(hexA, hexB);
+  return null;
+}
+
 /* ---------- COLLECTION (localStorage) ---------- */
 // discovered is now { name: recipe } e.g. { "Orange": "Red + Yellow", "Peach": "Red + Yellow + White" }
 let discovered = JSON.parse(localStorage.getItem('colorMixerDiscovered2') || '{}');
@@ -991,7 +1058,7 @@ function mixPickColor(color) {
 
 function showMixResult2() {
   const a = mixPicked[0].name, b = mixPicked[1].name;
-  const mix = lookupMix(a, b);
+  const mix = mixColors(a, b);
 
   if (mix) {
     intermediateMix = mix;
@@ -1051,8 +1118,12 @@ add3rdBtn.addEventListener('click', () => {
 
 function showMixResult3() {
   const thirdColor = mixPicked[2];
-  // Look up: intermediateMix.name + thirdColor.name
-  const mix = lookupMix(intermediateMix.name, thirdColor.name);
+  // Try table lookup first, then RGB blend using the intermediate hex
+  let mix = lookupMix(intermediateMix.name, thirdColor.name);
+  if (!mix) {
+    // Blend the intermediate result's hex with the 3rd color's hex
+    mix = blendMix(intermediateMix.hex, thirdColor.hex);
+  }
   const a = mixPicked[0].name, b = mixPicked[1].name, c = thirdColor.name;
 
   if (mix) {
