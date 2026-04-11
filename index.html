@@ -382,6 +382,13 @@
       border-radius: 6px;
       background: #fff;
     }
+    .current-color-swatch {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      border: 3px solid var(--border);
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
     .paint-buttons { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
     .paint-tool-btn {
       width: 38px; height: 38px;
@@ -407,6 +414,7 @@
       max-width: 100%;
     }
     .paint-canvas.eraser-cursor { cursor: cell; }
+    .paint-canvas.eyedropper-cursor { cursor: crosshair; }
 
     /* ===== FREE MIX MODE ===== */
     .free-mix-area { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; }
@@ -647,8 +655,10 @@
           <label>Brush:</label>
           <input type="range" class="brush-slider" id="brushSlider" min="4" max="50" value="16">
           <canvas class="brush-preview" id="brushPreview" width="60" height="40"></canvas>
+          <div class="current-color-swatch" id="currentColorSwatch" title="Current color"></div>
         </div>
         <div class="paint-buttons">
+          <button class="paint-tool-btn" id="eyedropperBtn" title="Pick color from canvas">💉</button>
           <button class="paint-tool-btn" id="eraserBtn" title="Eraser">🧹</button>
           <button class="paint-tool-btn" id="undoBtn" title="Undo">↩️</button>
           <button class="paint-tool-btn" id="redoBtn" title="Redo">↪️</button>
@@ -1340,11 +1350,18 @@ function quizPickColor(color) {
 
 function renderStars() {
   quizStarsEl.innerHTML = '';
-  for (let i = 0; i < Math.min(quizStarCount, 20); i++) {
+  if (quizStarCount <= 10) {
+    for (let i = 0; i < quizStarCount; i++) {
+      const s = document.createElement('span');
+      s.className = 'star earned';
+      s.textContent = '⭐';
+      s.style.animationDelay = (i * 0.05) + 's';
+      quizStarsEl.appendChild(s);
+    }
+  } else {
     const s = document.createElement('span');
     s.className = 'star earned';
-    s.textContent = '⭐';
-    s.style.animationDelay = (i * 0.05) + 's';
+    s.textContent = '⭐ ×' + quizStarCount;
     quizStarsEl.appendChild(s);
   }
 }
@@ -1361,8 +1378,10 @@ const paintToolbar = document.getElementById('paintToolbar');
 const brushSlider = document.getElementById('brushSlider');
 const brushPreview = document.getElementById('brushPreview');
 const brushPreviewCtx = brushPreview.getContext('2d');
+const currentColorSwatch = document.getElementById('currentColorSwatch');
 const clearCanvasBtn = document.getElementById('clearCanvasBtn');
 const eraserBtn = document.getElementById('eraserBtn');
+const eyedropperBtn = document.getElementById('eyedropperBtn');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 const saveBtn = document.getElementById('saveBtn');
@@ -1371,6 +1390,7 @@ const expandCanvasBtn = document.getElementById('expandCanvasBtn');
 let currentPaintColor = '#e74c3c';
 let painting = false;
 let eraserMode = false;
+let eyedropperMode = false;
 let canvasExpanded = false;
 
 // Fixed internal canvas size (logical pixels, before DPR scaling)
@@ -1429,6 +1449,10 @@ function drawBrushPreview() {
   brushPreviewCtx.lineWidth = Math.min(size, h - 4);
   brushPreviewCtx.lineCap = 'round';
   brushPreviewCtx.stroke();
+
+  // Sync the color swatch
+  currentColorSwatch.style.background = eraserMode ? '#ffffff' : currentPaintColor;
+  currentColorSwatch.style.borderColor = eraserMode ? 'var(--border)' : currentPaintColor;
 }
 
 brushSlider.addEventListener('input', drawBrushPreview);
@@ -1488,12 +1512,28 @@ function updatePaintToolbar() {
   });
 }
 
+// Eyedropper
+eyedropperBtn.addEventListener('click', () => {
+  eyedropperMode = !eyedropperMode;
+  eyedropperBtn.classList.toggle('active', eyedropperMode);
+  paintCanvas.classList.toggle('eyedropper-cursor', eyedropperMode);
+  if (eyedropperMode) {
+    eraserMode = false;
+    eraserBtn.classList.remove('active');
+    paintCanvas.classList.remove('eraser-cursor');
+    paintToolbar.querySelectorAll('.paint-color-btn').forEach(b => b.classList.remove('active'));
+  }
+});
+
 // Eraser
 eraserBtn.addEventListener('click', () => {
   eraserMode = !eraserMode;
   eraserBtn.classList.toggle('active', eraserMode);
   paintCanvas.classList.toggle('eraser-cursor', eraserMode);
   if (eraserMode) {
+    eyedropperMode = false;
+    eyedropperBtn.classList.remove('active');
+    paintCanvas.classList.remove('eyedropper-cursor');
     paintToolbar.querySelectorAll('.paint-color-btn').forEach(b => b.classList.remove('active'));
   } else {
     updatePaintToolbar();
@@ -1565,6 +1605,20 @@ function drawLine(from, to) {
 let lastPos = null;
 
 function onPaintStart(e) {
+  if (eyedropperMode) {
+    const pos = getCanvasPos(e);
+    const dpr = window.devicePixelRatio || 1;
+    const px = paintCtx.getImageData(Math.round(pos.x * dpr), Math.round(pos.y * dpr), 1, 1).data;
+    const hex = '#' + [px[0], px[1], px[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+    currentPaintColor = hex;
+    eyedropperMode = false;
+    eyedropperBtn.classList.remove('active');
+    paintCanvas.classList.remove('eyedropper-cursor');
+    updatePaintToolbar();
+    drawBrushPreview();
+    sfxPick();
+    return;
+  }
   saveUndoState();
   painting = true;
   lastPos = getCanvasPos(e);
