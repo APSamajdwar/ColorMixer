@@ -12,7 +12,7 @@ A fun, interactive color-mixing app for learning how colors combine. Works entir
 Pick two (or three) colors from the palette and drop them into the mixing bowl to see what they make. Supports primary → secondary → tertiary color chains, tints (+ white), shades (+ black), and RGB blending for combinations without a named result. Drag and drop or tap to pick colors.
 
 ### Quiz
-Guess which two colors mix to make the target. Earn stars for correct answers — a streak counter tracks consecutive correct guesses. Stars compact to `⭐ ×N` format once you get past 10 so they don't overflow the screen.
+Guess which two colors mix to make the target. Earn stars for correct answers — a streak counter tracks consecutive correct guesses.
 
 ### Paint
 A free-draw canvas with:
